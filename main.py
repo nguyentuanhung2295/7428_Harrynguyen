@@ -1,116 +1,56 @@
 import streamlit as st
-import numpy as np
+import random
 
-# Game Settings
-GRID_SIZE = 10
-FIRE_ICON = "🔴"
-SNOW_ICON = "🔵"
-WATER = "🌊"
-LAVA = "🔥"
-GOAL = "🏁"
-EMPTY = "⬜"
+ROWS, COLS = 6, 6
+ITEMS = {
+    "💰": 100,  # Gold
+    "🪨": 20,   # Rock
+    "💎": 250,  # Diamond
+    "": 0       # Empty
+}
 
-# Initialize session state
-if "fire_pos" not in st.session_state:
-    st.session_state.fire_pos = [0, 0]
-    st.session_state.snow_pos = [GRID_SIZE - 1, GRID_SIZE - 1]
-    st.session_state.goal = [GRID_SIZE // 2, GRID_SIZE // 2]
-    st.session_state.turn = "Fire"
-    st.session_state.win = False
+if "map" not in st.session_state:
+    st.session_state.map = [[random.choices(["💰", "🪨", "💎", ""], [0.2, 0.3, 0.1, 0.4])[0] for _ in range(COLS)] for _ in range(ROWS)]
+    st.session_state.revealed = [[False for _ in range(COLS)] for _ in range(ROWS)]
+    st.session_state.score = 0
+    st.session_state.turns_left = 10
 
-# Obstacles map
-obstacles = np.full((GRID_SIZE, GRID_SIZE), "")
-obstacles[2][3] = WATER
-obstacles[3][3] = WATER
-obstacles[6][4] = LAVA
-obstacles[5][5] = LAVA
+def reset_game():
+    st.session_state.map = [[random.choices(["💰", "🪨", "💎", ""], [0.2, 0.3, 0.1, 0.4])[0] for _ in range(COLS)] for _ in range(ROWS)]
+    st.session_state.revealed = [[False for _ in range(COLS)] for _ in range(ROWS)]
+    st.session_state.score = 0
+    st.session_state.turns_left = 10
 
-def is_valid(pos, player):
-    r, c = pos
-    if not (0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE):
-        return False
-    cell = obstacles[r][c]
-    if player == "Fire" and cell == WATER:
-        return False
-    if player == "Snow" and cell == LAVA:
-        return False
-    return True
+st.set_page_config(page_title="🎣 Game Đào Vàng")
+st.title("🎣 Game Đào Vàng")
 
-def move_player(direction):
-    if st.session_state.win:
-        return
-    delta = {
-        "up": (-1, 0),
-        "down": (1, 0),
-        "left": (0, -1),
-        "right": (0, 1)
-    }[direction]
+st.markdown(f"**Điểm của bạn:** {st.session_state.score} | **Lượt còn lại:** {st.session_state.turns_left}")
 
-    player = st.session_state.turn
-    pos = st.session_state.fire_pos if player == "Fire" else st.session_state.snow_pos
-    new_pos = [pos[0] + delta[0], pos[1] + delta[1]]
+if st.button("🔄 Chơi lại"):
+    reset_game()
 
-    if is_valid(new_pos, player):
-        if player == "Fire":
-            st.session_state.fire_pos = new_pos
-            st.session_state.turn = "Snow"
+# Game Board
+for row in range(ROWS):
+    cols = st.columns(COLS)
+    for col in range(COLS):
+        if st.session_state.revealed[row][col]:
+            icon = st.session_state.map[row][col] or "⬛"
         else:
-            st.session_state.snow_pos = new_pos
-            st.session_state.turn = "Fire"
+            icon = "❓"
 
-    # Check win
-    if (st.session_state.fire_pos == st.session_state.goal and
-        st.session_state.snow_pos == st.session_state.goal):
-        st.session_state.win = True
+        if cols[col].button(icon, key=f"{row}-{col}") and not st.session_state.revealed[row][col] and st.session_state.turns_left > 0:
+            st.session_state.revealed[row][col] = True
+            item = st.session_state.map[row][col]
+            st.session_state.score += ITEMS[item]
+            st.session_state.turns_left -= 1
+            st.rerun()
 
-def render_grid():
-    for r in range(GRID_SIZE):
-        cols = st.columns(GRID_SIZE)
-        for c in range(GRID_SIZE):
-            icon = EMPTY
-            if [r, c] == st.session_state.fire_pos:
-                icon = FIRE_ICON
-            elif [r, c] == st.session_state.snow_pos:
-                icon = SNOW_ICON
-            elif [r, c] == st.session_state.goal:
-                icon = GOAL
-            elif obstacles[r][c] == WATER:
-                icon = WATER
-            elif obstacles[r][c] == LAVA:
-                icon = LAVA
-            cols[c].markdown(icon)
-
-# Title & instructions
-st.set_page_config(page_title="Fire & Snow")
-st.title("🔥❄️ Fire and Snow")
-st.markdown("Take turns moving **Fire (🔴)** and **Snow (🔵)** to the goal (🏁). Avoid water or fire depending on the character.")
-
-if st.button("🔄 Reset Game"):
-    st.session_state.fire_pos = [0, 0]
-    st.session_state.snow_pos = [GRID_SIZE - 1, GRID_SIZE - 1]
-    st.session_state.turn = "Fire"
-    st.session_state.win = False
-
-# Render the grid
-render_grid()
-
-# Controls
-st.markdown(f"**{st.session_state.turn}'s turn**")
-col1, col2, col3 = st.columns(3)
-with col2:
-    if st.button("⬆️"):
-        move_player("up")
-col1, col2, col3 = st.columns(3)
-with col1:
-    if st.button("⬅️"):
-        move_player("left")
-with col2:
-    if st.button("⬇️"):
-        move_player("down")
-with col3:
-    if st.button("➡️"):
-        move_player("right")
-
-# Win check
-if st.session_state.win:
-    st.success("🎉 Both players reached the goal! You win!")
+# Kết thúc game
+if st.session_state.turns_left == 0:
+    st.markdown("---")
+    st.success(f"🎉 Game kết thúc! Tổng điểm của bạn là **{st.session_state.score}**.")
+    if st.session_state.score >= 500:
+        st.balloons()
+        st.markdown("🥳 Bạn đã vượt qua mục tiêu!")
+    else:
+        st.markdown("😢 Hãy thử lại để đạt điểm cao hơn!")
