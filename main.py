@@ -1,26 +1,14 @@
 import streamlit as st
-import numpy as np
+import random
 
-# Initialize game board
 BOARD_SIZE = 10
 WIN_LENGTH = 5
 
+# Initialize session state
 if "board" not in st.session_state:
     st.session_state.board = [["" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
-    st.session_state.turn = "X"
     st.session_state.winner = None
-
-def check_win(board, player):
-    for row in range(BOARD_SIZE):
-        for col in range(BOARD_SIZE):
-            if (
-                check_line(board, row, col, 1, 0, player) or  # horizontal
-                check_line(board, row, col, 0, 1, player) or  # vertical
-                check_line(board, row, col, 1, 1, player) or  # diagonal down-right
-                check_line(board, row, col, 1, -1, player)    # diagonal down-left
-            ):
-                return True
-    return False
+    st.session_state.turn = "X"  # Human always starts
 
 def check_line(board, row, col, delta_row, delta_col, player):
     count = 0
@@ -33,34 +21,59 @@ def check_line(board, row, col, delta_row, delta_col, player):
             break
     return count == WIN_LENGTH
 
+def check_win(board, player):
+    for row in range(BOARD_SIZE):
+        for col in range(BOARD_SIZE):
+            if (
+                check_line(board, row, col, 1, 0, player) or
+                check_line(board, row, col, 0, 1, player) or
+                check_line(board, row, col, 1, 1, player) or
+                check_line(board, row, col, 1, -1, player)
+            ):
+                return True
+    return False
+
 def reset_game():
     st.session_state.board = [["" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
     st.session_state.turn = "X"
     st.session_state.winner = None
 
-# Title and reset button
-st.title("🎮 Caro (Gomoku) Game")
+def ai_move():
+    # Very basic AI: choose a random empty cell
+    empty_cells = [(r, c) for r in range(BOARD_SIZE) for c in range(BOARD_SIZE) if st.session_state.board[r][c] == ""]
+    if empty_cells:
+        row, col = random.choice(empty_cells)
+        st.session_state.board[row][col] = "O"
+        if check_win(st.session_state.board, "O"):
+            st.session_state.winner = "O"
+
+# UI
+st.set_page_config(page_title="Caro vs AI")
+st.title("🤖 Caro Game - Play vs AI")
+
 if st.button("🔄 Reset Game"):
     reset_game()
 
-# Game status
 if st.session_state.winner:
     st.success(f"🎉 Player {st.session_state.winner} wins!")
 else:
-    st.info(f"🧑 Player {st.session_state.turn}'s turn")
+    st.info(f"🧑 Your turn (X)")
 
-# Draw game board
+# Game Board
 for row in range(BOARD_SIZE):
     cols = st.columns(BOARD_SIZE)
     for col in range(BOARD_SIZE):
         cell = st.session_state.board[row][col]
         if cell:
             cols[col].markdown(f"### {cell}")
-        elif not st.session_state.winner:
+        elif st.session_state.turn == "X" and not st.session_state.winner:
             if cols[col].button(" ", key=f"{row}-{col}"):
-                st.session_state.board[row][col] = st.session_state.turn
-                if check_win(st.session_state.board, st.session_state.turn):
-                    st.session_state.winner = st.session_state.turn
+                st.session_state.board[row][col] = "X"
+                if check_win(st.session_state.board, "X"):
+                    st.session_state.winner = "X"
                 else:
-                    st.session_state.turn = "O" if st.session_state.turn == "X" else "X"
-                st.rerun() 
+                    st.session_state.turn = "O"
+                    ai_move()
+                    if not st.session_state.winner:
+                        st.session_state.turn = "X"
+                st.rerun()
