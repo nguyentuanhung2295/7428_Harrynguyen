@@ -8,7 +8,7 @@ WIN_LENGTH = 5
 if "board" not in st.session_state:
     st.session_state.board = [["" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
     st.session_state.winner = None
-    st.session_state.turn = "X"  # Human always starts
+    st.session_state.turn = "X"
 
 def check_line(board, row, col, delta_row, delta_col, player):
     count = 0
@@ -38,18 +38,41 @@ def reset_game():
     st.session_state.turn = "X"
     st.session_state.winner = None
 
-def ai_move():
-    # Very basic AI: choose a random empty cell
+def simulate_move(board, row, col, player):
+    board[row][col] = player
+    win = check_win(board, player)
+    board[row][col] = ""
+    return win
+
+def get_smart_ai_move():
     empty_cells = [(r, c) for r in range(BOARD_SIZE) for c in range(BOARD_SIZE) if st.session_state.board[r][c] == ""]
-    if empty_cells:
-        row, col = random.choice(empty_cells)
-        st.session_state.board[row][col] = "O"
+
+    # 1. Try to win
+    for r, c in empty_cells:
+        if simulate_move(st.session_state.board, r, c, "O"):
+            return r, c
+
+    # 2. Block player from winning
+    for r, c in empty_cells:
+        if simulate_move(st.session_state.board, r, c, "X"):
+            return r, c
+
+    # 3. Try to play near the center or near other pieces
+    center = BOARD_SIZE // 2
+    empty_cells.sort(key=lambda x: abs(x[0] - center) + abs(x[1] - center))
+    return empty_cells[0] if empty_cells else None
+
+def ai_move():
+    move = get_smart_ai_move()
+    if move:
+        r, c = move
+        st.session_state.board[r][c] = "O"
         if check_win(st.session_state.board, "O"):
             st.session_state.winner = "O"
 
 # UI
-st.set_page_config(page_title="Caro vs AI")
-st.title("🤖 Caro Game - Play vs AI")
+st.set_page_config(page_title="Caro AI")
+st.title("🤖 Caro Game - Smarter AI")
 
 if st.button("🔄 Reset Game"):
     reset_game()
@@ -59,7 +82,7 @@ if st.session_state.winner:
 else:
     st.info(f"🧑 Your turn (X)")
 
-# Game Board
+# Draw the board
 for row in range(BOARD_SIZE):
     cols = st.columns(BOARD_SIZE)
     for col in range(BOARD_SIZE):
