@@ -1,102 +1,116 @@
 import streamlit as st
-import random
+import numpy as np
 
-BOARD_SIZE = 10
-WIN_LENGTH = 5
+# Game Settings
+GRID_SIZE = 10
+FIRE_ICON = "🔴"
+SNOW_ICON = "🔵"
+WATER = "🌊"
+LAVA = "🔥"
+GOAL = "🏁"
+EMPTY = "⬜"
 
 # Initialize session state
-if "board" not in st.session_state:
-    st.session_state.board = [["" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
-    st.session_state.winner = None
-    st.session_state.turn = "X"
+if "fire_pos" not in st.session_state:
+    st.session_state.fire_pos = [0, 0]
+    st.session_state.snow_pos = [GRID_SIZE - 1, GRID_SIZE - 1]
+    st.session_state.goal = [GRID_SIZE // 2, GRID_SIZE // 2]
+    st.session_state.turn = "Fire"
+    st.session_state.win = False
 
-def check_line(board, row, col, delta_row, delta_col, player):
-    count = 0
-    for i in range(WIN_LENGTH):
-        r = row + delta_row * i
-        c = col + delta_col * i
-        if 0 <= r < BOARD_SIZE and 0 <= c < BOARD_SIZE and board[r][c] == player:
-            count += 1
+# Obstacles map
+obstacles = np.full((GRID_SIZE, GRID_SIZE), "")
+obstacles[2][3] = WATER
+obstacles[3][3] = WATER
+obstacles[6][4] = LAVA
+obstacles[5][5] = LAVA
+
+def is_valid(pos, player):
+    r, c = pos
+    if not (0 <= r < GRID_SIZE and 0 <= c < GRID_SIZE):
+        return False
+    cell = obstacles[r][c]
+    if player == "Fire" and cell == WATER:
+        return False
+    if player == "Snow" and cell == LAVA:
+        return False
+    return True
+
+def move_player(direction):
+    if st.session_state.win:
+        return
+    delta = {
+        "up": (-1, 0),
+        "down": (1, 0),
+        "left": (0, -1),
+        "right": (0, 1)
+    }[direction]
+
+    player = st.session_state.turn
+    pos = st.session_state.fire_pos if player == "Fire" else st.session_state.snow_pos
+    new_pos = [pos[0] + delta[0], pos[1] + delta[1]]
+
+    if is_valid(new_pos, player):
+        if player == "Fire":
+            st.session_state.fire_pos = new_pos
+            st.session_state.turn = "Snow"
         else:
-            break
-    return count == WIN_LENGTH
+            st.session_state.snow_pos = new_pos
+            st.session_state.turn = "Fire"
 
-def check_win(board, player):
-    for row in range(BOARD_SIZE):
-        for col in range(BOARD_SIZE):
-            if (
-                check_line(board, row, col, 1, 0, player) or
-                check_line(board, row, col, 0, 1, player) or
-                check_line(board, row, col, 1, 1, player) or
-                check_line(board, row, col, 1, -1, player)
-            ):
-                return True
-    return False
+    # Check win
+    if (st.session_state.fire_pos == st.session_state.goal and
+        st.session_state.snow_pos == st.session_state.goal):
+        st.session_state.win = True
 
-def reset_game():
-    st.session_state.board = [["" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
-    st.session_state.turn = "X"
-    st.session_state.winner = None
+def render_grid():
+    for r in range(GRID_SIZE):
+        cols = st.columns(GRID_SIZE)
+        for c in range(GRID_SIZE):
+            icon = EMPTY
+            if [r, c] == st.session_state.fire_pos:
+                icon = FIRE_ICON
+            elif [r, c] == st.session_state.snow_pos:
+                icon = SNOW_ICON
+            elif [r, c] == st.session_state.goal:
+                icon = GOAL
+            elif obstacles[r][c] == WATER:
+                icon = WATER
+            elif obstacles[r][c] == LAVA:
+                icon = LAVA
+            cols[c].markdown(icon)
 
-def simulate_move(board, row, col, player):
-    board[row][col] = player
-    win = check_win(board, player)
-    board[row][col] = ""
-    return win
-
-def get_smart_ai_move():
-    empty_cells = [(r, c) for r in range(BOARD_SIZE) for c in range(BOARD_SIZE) if st.session_state.board[r][c] == ""]
-
-    # 1. Try to win
-    for r, c in empty_cells:
-        if simulate_move(st.session_state.board, r, c, "O"):
-            return r, c
-
-    # 2. Block player from winning
-    for r, c in empty_cells:
-        if simulate_move(st.session_state.board, r, c, "X"):
-            return r, c
-
-    # 3. Try to play near the center or near other pieces
-    center = BOARD_SIZE // 2
-    empty_cells.sort(key=lambda x: abs(x[0] - center) + abs(x[1] - center))
-    return empty_cells[0] if empty_cells else None
-
-def ai_move():
-    move = get_smart_ai_move()
-    if move:
-        r, c = move
-        st.session_state.board[r][c] = "O"
-        if check_win(st.session_state.board, "O"):
-            st.session_state.winner = "O"
-
-# UI
-st.set_page_config(page_title="Caro AI")
-st.title("🤖 Caro Game - Smarter AI")
+# Title & instructions
+st.set_page_config(page_title="Fire & Snow")
+st.title("🔥❄️ Fire and Snow")
+st.markdown("Take turns moving **Fire (🔴)** and **Snow (🔵)** to the goal (🏁). Avoid water or fire depending on the character.")
 
 if st.button("🔄 Reset Game"):
-    reset_game()
+    st.session_state.fire_pos = [0, 0]
+    st.session_state.snow_pos = [GRID_SIZE - 1, GRID_SIZE - 1]
+    st.session_state.turn = "Fire"
+    st.session_state.win = False
 
-if st.session_state.winner:
-    st.success(f"🎉 Player {st.session_state.winner} wins!")
-else:
-    st.info(f"🧑 Your turn (X)")
+# Render the grid
+render_grid()
 
-# Draw the board
-for row in range(BOARD_SIZE):
-    cols = st.columns(BOARD_SIZE)
-    for col in range(BOARD_SIZE):
-        cell = st.session_state.board[row][col]
-        if cell:
-            cols[col].markdown(f"### {cell}")
-        elif st.session_state.turn == "X" and not st.session_state.winner:
-            if cols[col].button(" ", key=f"{row}-{col}"):
-                st.session_state.board[row][col] = "X"
-                if check_win(st.session_state.board, "X"):
-                    st.session_state.winner = "X"
-                else:
-                    st.session_state.turn = "O"
-                    ai_move()
-                    if not st.session_state.winner:
-                        st.session_state.turn = "X"
-                st.rerun()
+# Controls
+st.markdown(f"**{st.session_state.turn}'s turn**")
+col1, col2, col3 = st.columns(3)
+with col2:
+    if st.button("⬆️"):
+        move_player("up")
+col1, col2, col3 = st.columns(3)
+with col1:
+    if st.button("⬅️"):
+        move_player("left")
+with col2:
+    if st.button("⬇️"):
+        move_player("down")
+with col3:
+    if st.button("➡️"):
+        move_player("right")
+
+# Win check
+if st.session_state.win:
+    st.success("🎉 Both players reached the goal! You win!")
