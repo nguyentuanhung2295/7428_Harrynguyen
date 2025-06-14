@@ -1,66 +1,66 @@
 import streamlit as st
+import numpy as np
 
-# ---- Simulated Database ----
-if "users" not in st.session_state:
-    st.session_state.users = {"admin": "admin123"}  # Preloaded admin user
+# Initialize game board
+BOARD_SIZE = 10
+WIN_LENGTH = 5
 
-# ---- Session Management ----
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-    st.session_state.username = ""
+if "board" not in st.session_state:
+    st.session_state.board = [["" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
+    st.session_state.turn = "X"
+    st.session_state.winner = None
 
-# ---- Login Functionality ----
-def login_form():
-    st.subheader("🔐 Login")
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+def check_win(board, player):
+    for row in range(BOARD_SIZE):
+        for col in range(BOARD_SIZE):
+            if (
+                check_line(board, row, col, 1, 0, player) or  # horizontal
+                check_line(board, row, col, 0, 1, player) or  # vertical
+                check_line(board, row, col, 1, 1, player) or  # diagonal down-right
+                check_line(board, row, col, 1, -1, player)    # diagonal down-left
+            ):
+                return True
+    return False
 
-    if st.button("Login"):
-        if username in st.session_state.users and st.session_state.users[username] == password:
-            st.session_state.logged_in = True
-            st.session_state.username = username
-            st.success(f"Welcome back, {username}!")
+def check_line(board, row, col, delta_row, delta_col, player):
+    count = 0
+    for i in range(WIN_LENGTH):
+        r = row + delta_row * i
+        c = col + delta_col * i
+        if 0 <= r < BOARD_SIZE and 0 <= c < BOARD_SIZE and board[r][c] == player:
+            count += 1
         else:
-            st.error("Invalid username or password.")
+            break
+    return count == WIN_LENGTH
 
-# ---- Register Functionality ----
-def register_form():
-    st.subheader("📝 Register")
-    new_user = st.text_input("Choose a username")
-    new_pass = st.text_input("Choose a password", type="password")
-    confirm_pass = st.text_input("Confirm password", type="password")
+def reset_game():
+    st.session_state.board = [["" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
+    st.session_state.turn = "X"
+    st.session_state.winner = None
 
-    if st.button("Register"):
-        if new_user in st.session_state.users:
-            st.warning("Username already exists.")
-        elif new_pass != confirm_pass:
-            st.warning("Passwords do not match.")
-        elif not new_user or not new_pass:
-            st.warning("Please fill in all fields.")
-        else:
-            st.session_state.users[new_user] = new_pass
-            st.success("Registration successful! You can now login.")
+# Title and reset button
+st.title("🎮 Caro (Gomoku) Game")
+if st.button("🔄 Reset Game"):
+    reset_game()
 
-# ---- Main Interface ----
-st.set_page_config(page_title="Login System")
-
-st.title("🛋️ Furniture App - Login/Register")
-
-if not st.session_state.logged_in:
-    form_type = st.radio("Choose an option", ["Login", "Register"], horizontal=True)
-
-    if form_type == "Login":
-        login_form()
-    else:
-        register_form()
+# Game status
+if st.session_state.winner:
+    st.success(f"🎉 Player {st.session_state.winner} wins!")
 else:
-    st.success(f"You are logged in as **{st.session_state.username}**.")
-    if st.button("Logout"):
-        st.session_state.logged_in = False
-        st.session_state.username = ""
-        st.experimental_rerun()
+    st.info(f"🧑 Player {st.session_state.turn}'s turn")
 
-    # Simulated protected content
-    st.markdown("### 🪑 Welcome to the Furniture Store Dashboard!")
-    st.markdown("- Browse products\n- Add to cart\n- Check out")
-
+# Draw game board
+for row in range(BOARD_SIZE):
+    cols = st.columns(BOARD_SIZE)
+    for col in range(BOARD_SIZE):
+        cell = st.session_state.board[row][col]
+        if cell:
+            cols[col].markdown(f"### {cell}")
+        elif not st.session_state.winner:
+            if cols[col].button(" ", key=f"{row}-{col}"):
+                st.session_state.board[row][col] = st.session_state.turn
+                if check_win(st.session_state.board, st.session_state.turn):
+                    st.session_state.winner = st.session_state.turn
+                else:
+                    st.session_state.turn = "O" if st.session_state.turn == "X" else "X"
+                st.experimental_rerun()  # Refresh board immediately after a move
