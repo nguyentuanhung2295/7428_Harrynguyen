@@ -63,4 +63,4 @@ for row in range(BOARD_SIZE):
                     st.session_state.winner = st.session_state.turn
                 else:
                     st.session_state.turn = "O" if st.session_state.turn == "X" else "X"
-                st.experimental_rerun()  # Refresh board immediately after a move
+                st.rerun() 
